@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semantic Segmentation - Drone Landing Zone</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { text-align: center; color: #333; font-size: 2.5rem; }
+        .subtitle { text-align: center; color: #666; margin-bottom: 20px; font-size: 1.1rem; }
+        
+        .nav-links {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 15px 0 25px 0;
+            flex-wrap: wrap;
+        }
+        .nav-links a {
+            padding: 10px 25px;
+            background: #f0f0ff;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .nav-links a:hover, .nav-links a.active {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 50px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+        .upload-area:hover { border-color: #764ba2; background: #f0f0ff; }
+        .upload-area.dragover { border-color: #764ba2; background: #e8e8ff; }
+        .upload-area.has-file { border-color: #28a745; background: #f0fff4; }
+        .upload-icon { font-size: 60px; color: #667eea; margin-bottom: 15px; }
+        .upload-text { font-size: 1.2rem; color: #555; }
+        .upload-subtext { font-size: 0.9rem; color: #999; margin-top: 10px; }
+        #fileInput { display: none; }
+        .file-name { color: #28a745; font-weight: bold; margin-top: 10px; display: none; }
+        
+        .controls {
+            display: flex; gap: 15px; justify-content: center; margin: 20px 0; flex-wrap: wrap;
+        }
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(102,126,234,0.4); }
+        .btn-secondary { background: #e0e0e0; color: #333; }
+        .btn-secondary:hover { background: #d0d0d0; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        
+        .loader { display: none; text-align: center; padding: 20px; }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .results { display: none; margin-top: 30px; }
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .result-card {
+            background: #f8f9ff;
+            border-radius: 15px;
+            padding: 15px;
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        .result-card:hover { transform: translateY(-5px); }
+        .result-card img {
+            width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+            border-radius: 10px;
+            background: white;
+        }
+        .result-card h3 { margin: 10px 0; color: #333; font-size: 1rem; }
+        
+        .info-panel {
+            background: #f8f9ff;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .info-item { text-align: center; }
+        .info-item .label { font-size: 0.8rem; color: #888; text-transform: uppercase; }
+        .info-item .value { font-size: 1.5rem; font-weight: bold; color: #333; margin-top: 5px; }
+        .info-item .value.green { color: #28a745; }
+        .info-item .value.purple { color: #667eea; }
+        
+        .class-distribution {
+            margin-top: 20px;
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 15px;
+        }
+        .class-distribution h3 { margin-bottom: 15px; color: #333; }
+        .class-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 5px 0;
+            padding: 5px 10px;
+            background: white;
+            border-radius: 5px;
+        }
+        .class-name { min-width: 120px; font-size: 0.9rem; color: #555; }
+        .class-bar-bg {
+            flex: 1;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .class-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 10px;
+            transition: width 0.8s ease;
+            width: 0%;
+        }
+        .class-percentage { min-width: 60px; text-align: right; font-size: 0.9rem; color: #555; }
+        
+        .pixel-class-info {
+            margin-top: 20px;
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 15px;
+        }
+        .pixel-class-info h3 { margin-bottom: 15px; color: #333; }
+        .pixel-class-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .pixel-class-card {
+            background: white;
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            border: 2px solid #ddd;
+            transition: transform 0.3s;
+        }
+        .pixel-class-card:hover { transform: scale(1.05); }
+        .pixel-class-card .color-box {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            margin: 0 auto 8px auto;
+            border: 1px solid #ddd;
+        }
+        .pixel-class-card .class-name-label {
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        .pixel-class-card .pixel-value-label {
+            font-size: 0.85rem;
+            color: #666;
+        }
+        
+        .sample-pixels {
+            margin-top: 20px;
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 15px;
+        }
+        .sample-pixels h3 { margin-bottom: 15px; color: #333; }
+        .sample-pixels-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 10px;
+        }
+        .sample-pixel-card {
+            background: white;
+            border-radius: 10px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border: 1px solid #ddd;
+        }
+        .sample-pixel-card .color-box {
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            flex-shrink: 0;
+        }
+        
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+            text-align: center;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+        .status-success { background: #d4edda; color: #155724; }
+        .status-error { background: #f8d7da; color: #721c24; }
+        
+        @media (max-width: 768px) {
+            .container { padding: 15px; }
+            h1 { font-size: 1.8rem; }
+            .results-grid { grid-template-columns: 1fr; }
+            .controls { flex-direction: column; align-items: center; }
+            .btn { width: 100%; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚁 Drone Semantic Segmentation</h1>
+        <p class="subtitle">Upload an aerial image for pixel-wise class mapping</p>
+        
+        <div class="nav-links">
+            <a href="/" class="active">📤 Upload Image</a>
+            <a href="/camera">📷 Camera Mode</a>
+        </div>
+        
+        <div id="errorMessage" class="error-message"></div>
+        <div id="statusMessage" style="text-align: center; margin-bottom: 20px;"></div>
+        
+        <!-- Upload Area -->
+        <div class="upload-area" id="dropZone">
+            <div class="upload-icon">📸</div>
+            <div class="upload-text" id="uploadText">Drag & drop your image here</div>
+            <div class="upload-subtext">or click to browse (JPG, PNG, BMP, TIFF, WEBP)</div>
+            <div class="file-name" id="fileName"></div>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+        
+        <!-- Controls -->
+        <div class="controls">
+            <button class="btn btn-primary" id="analyzeBtn" disabled>🔍 Analyze Image</button>
+            <button class="btn btn-secondary" id="clearBtn">🗑️ Clear Results</button>
+            <button class="btn btn-secondary" id="healthBtn">❤️ Check Health</button>
+        </div>
+        
+        <!-- Loader -->
+        <div class="loader" id="loader">
+            <div class="spinner"></div>
+            <p style="margin-top: 15px; color: #666;">Processing your image...</p>
+        </div>
+        
+        <!-- Results -->
+        <div class="results" id="results">
+            <div class="info-panel">
+                <div class="info-item">
+                    <div class="label">Inference Time</div>
+                    <div class="value purple" id="inferenceTime">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">Classes Detected</div>
+                    <div class="value green" id="classesDetected">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">Status</div>
+                    <div class="value" id="status" style="color: #4CAF50; font-size: 1rem;">✅ Complete</div>
+                </div>
+            </div>
+            
+            <div class="results-grid" id="resultsGrid"></div>
+            
+            <div class="class-distribution" id="classDistribution">
+                <h3>📊 Class Distribution</h3>
+                <div id="classBars"></div>
+            </div>
+            
+            <div class="pixel-class-info">
+                <h3>🔍 Pixel-Wise Class Mapping</h3>
+                <div class="pixel-class-grid" id="pixelClassGrid"></div>
+            </div>
+            
+            <div class="sample-pixels" id="samplePixels">
+                <h3>📍 Sample Pixel Classes</h3>
+                <div class="sample-pixels-grid" id="samplePixelsGrid"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // DOM Elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const healthBtn = document.getElementById('healthBtn');
+        const loader = document.getElementById('loader');
+        const results = document.getElementById('results');
+        const resultsGrid = document.getElementById('resultsGrid');
+        const classBars = document.getElementById('classBars');
+        const pixelClassGrid = document.getElementById('pixelClassGrid');
+        const samplePixelsGrid = document.getElementById('samplePixelsGrid');
+        const inferenceTime = document.getElementById('inferenceTime');
+        const classesDetected = document.getElementById('classesDetected');
+        const errorMessage = document.getElementById('errorMessage');
+        const statusMessage = document.getElementById('statusMessage');
+        const uploadText = document.getElementById('uploadText');
+        const fileName = document.getElementById('fileName');
+        
+        let uploadedFile = null;
+        let isProcessing = false;
+        
+        // Event Listeners
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        analyzeBtn.addEventListener('click', analyzeImage);
+        clearBtn.addEventListener('click', clearResults);
+        healthBtn.addEventListener('click', checkHealth);
+        
+        function handleFile(file) {
+            const validTypes = ['image/jpeg', 'image/png', 'image/bmp', 'image/tiff', 'image/webp'];
+            if (!validTypes.includes(file.type) && !file.name.match(/\.(jpg|jpeg|png|bmp|tiff|webp)$/i)) {
+                showError('Please select a valid image file');
+                return;
+            }
+            
+            uploadedFile = file;
+            analyzeBtn.disabled = false;
+            fileName.textContent = `📁 Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+            fileName.style.display = 'block';
+            uploadText.textContent = '✅ File ready for analysis';
+            dropZone.classList.add('has-file');
+            hideError();
+            statusMessage.innerHTML = '';
+        }
+        
+        async function analyzeImage() {
+            if (!uploadedFile || isProcessing) return;
+            
+            isProcessing = true;
+            loader.style.display = 'block';
+            results.style.display = 'none';
+            analyzeBtn.disabled = true;
+            hideError();
+            
+            const formData = new FormData();
+            formData.append('image', uploadedFile);
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayResults(data);
+                    statusMessage.innerHTML = '<span class="status-badge status-success">✅ Analysis Complete</span>';
+                } else {
+                    showError(data.error || 'Analysis failed');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Failed to analyze image: ' + error.message);
+            } finally {
+                loader.style.display = 'none';
+                analyzeBtn.disabled = false;
+                isProcessing = false;
+            }
+        }
+        
+        function showError(message) {
+            errorMessage.textContent = '❌ Error: ' + message;
+            errorMessage.style.display = 'block';
+            statusMessage.innerHTML = '<span class="status-badge status-error">⚠️ Error</span>';
+        }
+        
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+        
+        function displayResults(data) {
+            results.style.display = 'block';
+            resultsGrid.innerHTML = '';
+            
+            inferenceTime.textContent = `${data.inference_time} ms`;
+            classesDetected.textContent = Object.keys(data.distribution).length;
+            
+            const images = [
+                { src: `data:image/jpeg;base64,${data.original}`, title: 'Original Image' },
+                { src: `data:image/jpeg;base64,${data.colorized}`, title: 'Segmentation' },
+                { src: `data:image/jpeg;base64,${data.overlay}`, title: 'Overlay' }
+            ];
+            
+            images.forEach(img => {
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                card.innerHTML = `
+                    <img src="${img.src}" alt="${img.title}" loading="lazy">
+                    <h3>${img.title}</h3>
+                `;
+                resultsGrid.appendChild(card);
+            });
+            
+            displayClassDistribution(data.distribution);
+            displayPixelClassInfo(data.pixel_class_info);
+            displaySamplePixels(data.sample_pixels);
+        }
+        
+        function displayClassDistribution(distribution) {
+            classBars.innerHTML = '';
+            const entries = Object.entries(distribution).sort((a, b) => b[1].percentage - a[1].percentage);
+            
+            if (entries.length === 0) {
+                classBars.innerHTML = '<p style="color: #999; text-align: center;">No classes detected</p>';
+                return;
+            }
+            
+            entries.forEach(([className, values]) => {
+                const bar = document.createElement('div');
+                bar.className = 'class-bar';
+                bar.innerHTML = `
+                    <span class="class-name" title="${className}">${className}</span>
+                    <div class="class-bar-bg">
+                        <div class="class-bar-fill" style="width: ${values.percentage}%"></div>
+                    </div>
+                    <span class="class-percentage">${values.percentage}%</span>
+                `;
+                classBars.appendChild(bar);
+            });
+            
+            setTimeout(() => {
+                document.querySelectorAll('.class-bar-fill').forEach(bar => {
+                    const width = bar.style.width;
+                    bar.style.width = '0%';
+                    setTimeout(() => {
+                        bar.style.width = width;
+                    }, 100);
+                });
+            }, 200);
+        }
+        
+        function displayPixelClassInfo(pixelClassInfo) {
+            pixelClassGrid.innerHTML = '';
+            const entries = Object.entries(pixelClassInfo);
+            if (entries.length === 0) {
+                pixelClassGrid.innerHTML = '<p style="color: #999; text-align: center; grid-column: 1/-1;">No pixel class information available</p>';
+                return;
+            }
+            
+            entries.forEach(([pixelValue, info]) => {
+                const card = document.createElement('div');
+                card.className = 'pixel-class-card';
+                card.innerHTML = `
+                    <div class="color-box" style="background: ${info.color_hex};"></div>
+                    <div class="class-name-label">${info.class_name}</div>
+                    <div class="pixel-value-label">Pixel Value: ${info.pixel_value}</div>
+                    <div class="pixel-value-label">${info.count.toLocaleString()} pixels (${info.percentage}%)</div>
+                `;
+                pixelClassGrid.appendChild(card);
+            });
+        }
+        
+        function displaySamplePixels(samplePixels) {
+            samplePixelsGrid.innerHTML = '';
+            if (!samplePixels || samplePixels.length === 0) {
+                samplePixelsGrid.innerHTML = '<p style="color: #999; text-align: center; grid-column: 1/-1;">No sample pixels available</p>';
+                return;
+            }
+            
+            samplePixels.forEach(pixel => {
+                const card = document.createElement('div');
+                card.className = 'sample-pixel-card';
+                card.innerHTML = `
+                    <div class="color-box" style="background: ${pixel.color_hex};"></div>
+                    <div>
+                        <div style="font-weight: bold;">${pixel.class_name}</div>
+                        <div style="font-size: 0.85rem; color: #666;">Position: (${pixel.x}, ${pixel.y})</div>
+                        <div style="font-size: 0.85rem; color: #666;">Pixel Value: ${pixel.pixel_value}</div>
+                    </div>
+                `;
+                samplePixelsGrid.appendChild(card);
+            });
+        }
+        
+        function clearResults() {
+            results.style.display = 'none';
+            classBars.innerHTML = '';
+            pixelClassGrid.innerHTML = '';
+            samplePixelsGrid.innerHTML = '';
+            uploadedFile = null;
+            analyzeBtn.disabled = true;
+            fileInput.value = '';
+            fileName.style.display = 'none';
+            uploadText.textContent = 'Drag & drop your image here';
+            dropZone.classList.remove('has-file');
+            hideError();
+            statusMessage.innerHTML = '';
+            resultsGrid.innerHTML = '';
+            inferenceTime.textContent = '-';
+            classesDetected.textContent = '-';
+        }
+        
+        async function checkHealth() {
+            try {
+                statusMessage.innerHTML = '<span style="color: #666;">⏳ Checking server...</span>';
+                const response = await fetch('/health');
+                const data = await response.json();
+                
+                if (data.status === 'healthy') {
+                    const modelStatus = data.model_loaded ? '✅ Model loaded' : '⚠️ Model not loaded';
+                    const gpuStatus = data.gpu && data.gpu.available ? `GPU: ${data.gpu.name}` : 'No GPU';
+                    statusMessage.innerHTML = `
+                        <span class="status-badge status-success">✅ Server Healthy</span>
+                        <br>
+                        <span style="color: #555; font-size: 0.9rem;">${modelStatus}</span>
+                        ${data.model_path ? `<br><span style="color: #888; font-size: 0.8rem;">Model: ${data.model_path}</span>` : ''}
+                        <br><span style="color: #888; font-size: 0.8rem;">${gpuStatus}</span>
+                    `;
+                } else {
+                    statusMessage.innerHTML = '<span class="status-badge status-error">❌ Server Error</span>';
+                }
+            } catch (error) {
+                statusMessage.innerHTML = `
+                    <span class="status-badge status-error">❌ Cannot connect to server</span>
+                    <br>
+                    <span style="color: #666; font-size: 0.9rem;">Make sure Flask is running: python app.py</span>
+                `;
+            }
+        }
+        
+        setTimeout(checkHealth, 1000);
+        console.log('🚁 Semantic Segmentation with Pixel Mapping Ready!');
+        console.log('📌 Upload an image to see pixel-wise class mapping');
+    </script>
+</body>
+</html>

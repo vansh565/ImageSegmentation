@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Segmentation - Camera</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0a0a;
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            background: #1a1a1a;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            border: 1px solid #333;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+        }
+        .nav-links {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 15px 0 25px 0;
+            flex-wrap: wrap;
+        }
+        .nav-links a {
+            padding: 10px 25px;
+            background: #252525;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 600;
+            transition: all 0.3s;
+            border: 1px solid #333;
+        }
+        .nav-links a:hover, .nav-links a.active {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+            border-color: #667eea;
+        }
+        .camera-container {
+            position: relative;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            aspect-ratio: 4/3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 300px;
+        }
+        #videoElement {
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: #000;
+            object-fit: contain;
+        }
+        .fps-counter {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(0,0,0,0.8);
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #28a745;
+            border: 1px solid #28a745;
+            font-family: 'Courier New', monospace;
+        }
+        .status {
+            padding: 12px 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 15px 0;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            font-size: 0.95rem;
+        }
+        .status.online { border-color: #28a745; color: #28a745; }
+        .status.offline { border-color: #dc3545; color: #dc3545; }
+        .controls {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            padding: 15px 0 5px 0;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 12px 28px;
+            border: none;
+            border-radius: 25px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: inherit;
+        }
+        .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+        .btn-primary:hover { transform: scale(1.05); box-shadow: 0 5px 20px rgba(102,126,234,0.4); }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #c82333; transform: scale(1.05); }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #5a6268; transform: scale(1.05); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+        
+        .info-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 12px;
+            padding: 15px 0 5px 0;
+        }
+        .info-item {
+            text-align: center;
+            background: #252525;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .info-item .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .info-item .value { font-size: 18px; font-weight: bold; color: #667eea; margin-top: 4px; font-family: 'Courier New', monospace; }
+        .info-item .value.green { color: #28a745; }
+        .info-item .value.red { color: #dc3545; }
+        
+        .pixel-class-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .pixel-class-card {
+            background: #252525;
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+            border: 2px solid #333;
+            transition: transform 0.3s;
+        }
+        .pixel-class-card:hover { transform: scale(1.05); }
+        .pixel-class-card .color-box {
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            margin: 0 auto 5px auto;
+            border: 1px solid #444;
+        }
+        .pixel-class-card .class-name-label {
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #ddd;
+        }
+        .pixel-class-card .pixel-value-label {
+            font-size: 0.7rem;
+            color: #888;
+        }
+        
+        .center-pixel-info {
+            background: #1a1a1a;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            border: 1px solid #333;
+            display: none;
+        }
+        .center-pixel-info h4 { color: #667eea; margin-bottom: 10px; }
+        .center-pixel-info .pixel-detail {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 8px;
+            background: #252525;
+            border-radius: 8px;
+        }
+        .center-pixel-info .pixel-detail .color-preview {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: 2px solid #444;
+        }
+        
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px 20px;
+            border-radius: 10px;
+            margin: 10px 0;
+            display: none;
+            text-align: center;
+        }
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px 20px;
+            border-radius: 10px;
+            margin: 10px 0;
+            display: none;
+            text-align: center;
+        }
+        
+        @media (max-width: 768px) {
+            .container { padding: 15px; }
+            h1 { font-size: 1.5rem; }
+            .btn { padding: 10px 18px; font-size: 13px; }
+            .info-panel { grid-template-columns: repeat(2, 1fr); }
+            .pixel-class-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎥 Real-Time Segmentation</h1>
+        <p class="subtitle">Live camera feed with pixel-wise class mapping</p>
+        
+        <div class="nav-links">
+            <a href="/">📤 Upload Image</a>
+            <a href="/camera" class="active">📷 Camera Mode</a>
+        </div>
+        
+        <div id="errorMessage" class="error-message"></div>
+        <div id="successMessage" class="success-message"></div>
+        
+        <div class="camera-container">
+            <video id="videoElement" autoplay playsinline></video>
+            <div class="fps-counter" id="fpsCounter">⚡ 0 FPS</div>
+        </div>
+        
+        <div class="status" id="status">⏳ Initializing camera...</div>
+        
+        <div class="controls">
+            <button class="btn btn-primary" id="startBtn">▶️ Start Camera</button>
+            <button class="btn btn-danger" id="stopBtn" disabled>⏹️ Stop Camera</button>
+            <button class="btn btn-secondary" id="toggleBtn">🎨 Toggle Overlay</button>
+        </div>
+        
+        <div class="info-panel">
+            <div class="info-item"><div class="label">Latency</div><div class="value" id="latency">-- ms</div></div>
+            <div class="info-item"><div class="label">Classes Detected</div><div class="value" id="classes">0</div></div>
+            <div class="info-item"><div class="label">Resolution</div><div class="value" id="resolution">--</div></div>
+            <div class="info-item"><div class="label">FPS</div><div class="value" id="fpsValue">0</div></div>
+        </div>
+        
+        <div class="center-pixel-info" id="centerPixelInfo">
+            <h4>🎯 Center Pixel Class</h4>
+            <div class="pixel-detail" id="centerPixelDetail">
+                <div class="color-preview" id="centerPixelColor"></div>
+                <div>
+                    <div style="font-weight: bold; font-size: 1.1rem;" id="centerPixelClass">--</div>
+                    <div style="color: #888; font-size: 0.9rem;" id="centerPixelValue">Pixel Value: --</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="pixel-class-grid" id="pixelClassGrid"></div>
+    </div>
+
+    <script>
+        const video = document.getElementById('videoElement');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const statusDiv = document.getElementById('status');
+        const fpsCounter = document.getElementById('fpsCounter');
+        const latencyDisplay = document.getElementById('latency');
+        const classesDisplay = document.getElementById('classes');
+        const resolutionDisplay = document.getElementById('resolution');
+        const fpsValue = document.getElementById('fpsValue');
+        const centerPixelInfo = document.getElementById('centerPixelInfo');
+        const centerPixelClass = document.getElementById('centerPixelClass');
+        const centerPixelValue = document.getElementById('centerPixelValue');
+        const centerPixelColor = document.getElementById('centerPixelColor');
+        const pixelClassGrid = document.getElementById('pixelClassGrid');
+        const errorMessage = document.getElementById('errorMessage');
+        const successMessage = document.getElementById('successMessage');
+
+        let stream = null;
+        let isRunning = false;
+        let showOverlay = true;
+        let frameCount = 0;
+        let lastFpsUpdate = Date.now();
+        let animationId = null;
+
+        // ============ CHECK SERVER HEALTH ============
+        async function checkHealth() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                if (data.status === 'healthy' && data.model_loaded) {
+                    statusDiv.textContent = '✅ Model loaded, ready!';
+                    statusDiv.className = 'status online';
+                    return true;
+                } else {
+                    statusDiv.textContent = '⚠️ Model not loaded.';
+                    statusDiv.className = 'status offline';
+                    return false;
+                }
+            } catch (e) {
+                statusDiv.textContent = '❌ Server not responding!';
+                statusDiv.className = 'status offline';
+                return false;
+            }
+        }
+
+        function showError(msg) { errorMessage.textContent = '❌ ' + msg; errorMessage.style.display = 'block'; successMessage.style.display = 'none'; }
+        function showSuccess(msg) { successMessage.textContent = '✅ ' + msg; successMessage.style.display = 'block'; errorMessage.style.display = 'none'; }
+        function hideMessages() { errorMessage.style.display = 'none'; successMessage.style.display = 'none'; }
+
+        function displayPixelClassInfo(pixelClassInfo) {
+            pixelClassGrid.innerHTML = '';
+            const entries = Object.entries(pixelClassInfo);
+            if (entries.length === 0) {
+                pixelClassGrid.innerHTML = '<p style="color: #888; text-align: center; grid-column: 1/-1;">No classes detected</p>';
+                return;
+            }
+            
+            entries.slice(0, 6).forEach(([pixelValue, info]) => {
+                const card = document.createElement('div');
+                card.className = 'pixel-class-card';
+                card.innerHTML = `
+                    <div class="color-box" style="background: ${info.color_hex};"></div>
+                    <div class="class-name-label">${info.class_name}</div>
+                    <div class="pixel-value-label">Val: ${info.pixel_value}</div>
+                    <div class="pixel-value-label">${info.percentage}%</div>
+                `;
+                pixelClassGrid.appendChild(card);
+            });
+        }
+
+        function displayCenterPixel(pixelInfo) {
+            if (pixelInfo) {
+                centerPixelInfo.style.display = 'block';
+                centerPixelClass.textContent = pixelInfo.class_name;
+                centerPixelValue.textContent = `Pixel Value: ${pixelInfo.pixel_value} | Position: (${pixelInfo.x}, ${pixelInfo.y})`;
+                centerPixelColor.style.background = pixelInfo.color_hex;
+            } else {
+                centerPixelInfo.style.display = 'none';
+            }
+        }
+
+        async function startCamera() {
+            try {
+                const isHealthy = await checkHealth();
+                if (!isHealthy) { showError('Model not loaded.'); return; }
+
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'environment' },
+                    audio: false
+                });
+                
+                video.srcObject = stream;
+                await video.play();
+                
+                isRunning = true;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                statusDiv.textContent = '✅ Camera running...';
+                statusDiv.className = 'status online';
+                hideMessages();
+                
+                const track = stream.getVideoTracks()[0];
+                const settings = track.getSettings();
+                resolutionDisplay.textContent = `${settings.width || '?'}x${settings.height || '?'}`;
+                
+                processFrame();
+            } catch (error) {
+                statusDiv.textContent = '❌ Camera access denied.';
+                statusDiv.className = 'status offline';
+                showError('Camera access denied.');
+                startBtn.disabled = false;
+            }
+        }
+
+        async function processFrame() {
+            if (!isRunning) return;
+
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0);
+                const imageData = canvas.toDataURL('image/jpeg', 0.8);
+
+                const start = performance.now();
+                const response = await fetch('/predict_frame', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                });
+
+                const data = await response.json();
+                const elapsed = performance.now() - start;
+
+                if (data.success) {
+                    const overlaySrc = `data:image/jpeg;base64,${data.overlay}`;
+                    if (showOverlay) {
+                        video.src = overlaySrc;
+                    } else {
+                        video.src = imageData;
+                    }
+
+                    // Update info
+                    latencyDisplay.textContent = `${data.inference_time} ms`;
+                    classesDisplay.textContent = data.classes_detected || 0;
+
+                    // Display pixel class mapping
+                    displayPixelClassInfo(data.pixel_class_info);
+                    displayCenterPixel(data.center_pixel);
+
+                    // FPS
+                    frameCount++;
+                    if (Date.now() - lastFpsUpdate > 1000) {
+                        const fps = frameCount;
+                        fpsCounter.textContent = `⚡ ${fps} FPS`;
+                        fpsValue.textContent = fps;
+                        frameCount = 0;
+                        lastFpsUpdate = Date.now();
+                    }
+                }
+            } catch (error) {
+                console.error('Frame processing error:', error);
+            }
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(processFrame);
+            }
+        }
+
+        function stopCamera() {
+            isRunning = false;
+            if (animationId) { cancelAnimationFrame(animationId); animationId = null; }
+            if (stream) { stream.getTracks().forEach(track => track.stop()); stream = null; }
+            video.srcObject = null;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            statusDiv.textContent = '⏹️ Camera stopped';
+            statusDiv.className = 'status';
+            fpsCounter.textContent = '⚡ 0 FPS';
+            fpsValue.textContent = '0';
+            latencyDisplay.textContent = '-- ms';
+            classesDisplay.textContent = '0';
+            centerPixelInfo.style.display = 'none';
+            pixelClassGrid.innerHTML = '';
+        }
+
+        function toggleOverlay() {
+            showOverlay = !showOverlay;
+            toggleBtn.textContent = showOverlay ? '🎨 Hide Overlay' : '🎨 Show Overlay';
+        }
+
+        startBtn.addEventListener('click', startCamera);
+        stopBtn.addEventListener('click', stopCamera);
+        toggleBtn.addEventListener('click', toggleOverlay);
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === ' ' || e.key === 's') { e.preventDefault(); if (!isRunning) startCamera(); else stopCamera(); }
+            if (e.key === 't' || e.key === 'T') toggleOverlay();
+        });
+
+        setTimeout(checkHealth, 1000);
+        console.log('🎥 Real-Time Segmentation with Pixel Mapping Ready!');
+    </script>
+</body>
+</html>
